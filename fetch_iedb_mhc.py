@@ -10,39 +10,21 @@ Usage:
 
 import sys
 import os
-import time
 import requests
 import pandas as pd
 
+# urllib3 in some conda environments (Python 3.7 + old PyOpenSSL) injects
+# PyOpenSSL as the SSL backend, which raises WantReadError during TLS 1.3
+# handshakes.  Switching urllib3 back to the standard-library ssl module
+# eliminates the error entirely.
+try:
+    from urllib3.contrib import pyopenssl as _pyopenssl
+    _pyopenssl.extract_from_urllib3()
+except Exception:
+    pass  # not using PyOpenSSL backend, nothing to do
+
 BASE_URL = "https://query-api.iedb.org"
 MHC_ENDPOINT = f"{BASE_URL}/epitope_search"
-
-# Gracefully import OpenSSL so the script works even without PyOpenSSL installed.
-# WantReadError is a TLS 1.3 race condition seen in Python 3.7 + old PyOpenSSL.
-try:
-    from OpenSSL.SSL import WantReadError as _OpenSSLWantReadError
-except ImportError:
-    _OpenSSLWantReadError = None
-
-
-def _get_with_retry(url, params, retries=3, backoff=2):
-    """GET with up to `retries` attempts, retrying on SSL / connection errors."""
-    for attempt in range(1, retries + 1):
-        try:
-            return requests.get(url, params=params, timeout=30)
-        except Exception as exc:
-            is_want_read = (
-                "WantReadError" in type(exc).__name__
-                or "WantReadError" in str(exc)
-                or (_OpenSSLWantReadError is not None and isinstance(exc, _OpenSSLWantReadError))
-            )
-            is_conn_err = isinstance(exc, requests.exceptions.ConnectionError)
-            if (is_want_read or is_conn_err) and attempt < retries:
-                wait = backoff * attempt
-                print(f"(SSL/connection error, retrying in {wait}s...)", end=" ", flush=True)
-                time.sleep(wait)
-                continue
-            raise
 
 
 def extract_epitope_id(url: str) -> str:
@@ -63,7 +45,7 @@ def fetch_mhc_alleles(epitope_id: str) -> str:
         "structure_id": f"eq.{epitope_id}",
         "select": "mhc_allele_names",
     }
-    response = _get_with_retry(MHC_ENDPOINT, params=params)
+    response = requests.get(MHC_ENDPOINT, params=params, timeout=30)
     response.raise_for_status()
 
     records = response.json()
