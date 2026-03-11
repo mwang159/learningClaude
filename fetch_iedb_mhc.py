@@ -24,7 +24,7 @@ except Exception:
     pass  # not using PyOpenSSL backend, nothing to do
 
 BASE_URL = "https://query-api.iedb.org"
-MHC_ENDPOINT = f"{BASE_URL}/epitope_search"
+MHC_LIGAND_ENDPOINT = f"{BASE_URL}/mhc_ligand_full"
 
 
 def extract_epitope_id(url: str) -> str:
@@ -34,26 +34,32 @@ def extract_epitope_id(url: str) -> str:
 
 def fetch_mhc_alleles(epitope_id: str) -> str:
     """
-    Query the IEDB IQ-API epitope_search endpoint for a given epitope ID
+    Query the IEDB IQ-API mhc_ligand_full endpoint for a given epitope ID
     and return a sorted, semicolon-separated string of unique MHC allele names
-    from MHC Ligand Assays (the mhc_allele_names field).
+    that have at least one positive assay result ("Positive / All" > 0).
 
-    Returns an empty string if no MHC ligand assay data is found.
+    Returns "NA" if no allele has a positive result or no MHC data is found.
     Raises requests.HTTPError on non-2xx responses.
     """
     params = {
         "structure_id": f"eq.{epitope_id}",
-        "select": "mhc_allele_names",
+        "select": "mhc_allele_name,qualitative_measure",
     }
-    response = requests.get(MHC_ENDPOINT, params=params, timeout=30)
+    response = requests.get(MHC_LIGAND_ENDPOINT, params=params, timeout=30)
     response.raise_for_status()
 
     records = response.json()
     if not records:
-        return ""
+        return "NA"
 
-    alleles = records[0].get("mhc_allele_names") or []
-    return "; ".join(sorted(alleles))
+    positive_alleles = {
+        row["mhc_allele_name"]
+        for row in records
+        if row.get("mhc_allele_name")
+        and str(row.get("qualitative_measure", "")).startswith("Positive")
+    }
+
+    return "; ".join(sorted(positive_alleles)) if positive_alleles else "NA"
 
 
 def main():
@@ -82,7 +88,7 @@ def main():
         print(f"  [{i}/{len(df)}] epitope {epitope_id} ...", end=" ", flush=True)
         try:
             alleles = fetch_mhc_alleles(epitope_id)
-            count = alleles.count(";") + 1 if alleles else 0
+            count = alleles.count(";") + 1 if alleles not in ("", "NA") else 0
             print(f"{count} allele(s) found")
         except requests.HTTPError as exc:
             alleles = f"HTTP error: {exc.response.status_code}"
