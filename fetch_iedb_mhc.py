@@ -49,9 +49,9 @@ def fetch_mhc_alleles(epitope_id: str) -> str:
     """
     Query the IEDB IQ-API mhc_search endpoint for a given epitope ID
     and return a sorted, semicolon-separated string of unique MHC allele names
-    that have at least one positive assay result ("Positive / All" > 0).
+    where more than half of all assay results are positive ("Positive / All" > 0.5).
 
-    Returns "NA" if no allele has a positive result or no MHC data is found.
+    Returns "NA" if no allele meets the threshold or no MHC data is found.
     Raises requests.HTTPError on non-2xx responses.
     """
     params = {
@@ -65,14 +65,23 @@ def fetch_mhc_alleles(epitope_id: str) -> str:
     if not records:
         return "NA"
 
-    positive_alleles = {
-        row["mhc_allele_name"]
-        for row in records
-        if row.get("mhc_allele_name")
-        and str(row.get("qualitative_measure", "")).startswith("Positive")
-    }
+    counts = {}  # allele -> {"total": int, "positive": int}
+    for row in records:
+        allele = row.get("mhc_allele_name")
+        if not allele:
+            continue
+        entry = counts.setdefault(allele, {"total": 0, "positive": 0})
+        entry["total"] += 1
+        if str(row.get("qualitative_measure", "")).startswith("Positive"):
+            entry["positive"] += 1
 
-    return "; ".join(sorted(positive_alleles)) if positive_alleles else "NA"
+    qualifying = [
+        allele
+        for allele, c in counts.items()
+        if c["total"] > 0 and c["positive"] / c["total"] > 0.5
+    ]
+
+    return "; ".join(sorted(qualifying)) if qualifying else "NA"
 
 
 def main():
