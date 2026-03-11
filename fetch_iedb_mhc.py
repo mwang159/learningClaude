@@ -10,6 +10,7 @@ Usage:
 
 import sys
 import os
+import time
 import requests
 import pandas as pd
 
@@ -24,7 +25,19 @@ except Exception:
     pass  # not using PyOpenSSL backend, nothing to do
 
 BASE_URL = "https://query-api.iedb.org"
-MHC_LIGAND_ENDPOINT = f"{BASE_URL}/mhc_ligand_full"
+MHC_SEARCH_ENDPOINT = f"{BASE_URL}/mhc_search"
+
+
+def _get_with_retry(url, params, retries=3, backoff=2):
+    """GET with retry on SSL/connection errors (TLS handshake race on Python 3.7)."""
+    for attempt in range(1, retries + 1):
+        try:
+            return requests.get(url, params=params, timeout=30)
+        except (requests.exceptions.SSLError, requests.exceptions.ConnectionError) as exc:
+            if attempt < retries:
+                time.sleep(backoff * attempt)
+            else:
+                raise
 
 
 def extract_epitope_id(url: str) -> str:
@@ -34,7 +47,7 @@ def extract_epitope_id(url: str) -> str:
 
 def fetch_mhc_alleles(epitope_id: str) -> str:
     """
-    Query the IEDB IQ-API mhc_ligand_full endpoint for a given epitope ID
+    Query the IEDB IQ-API mhc_search endpoint for a given epitope ID
     and return a sorted, semicolon-separated string of unique MHC allele names
     that have at least one positive assay result ("Positive / All" > 0).
 
@@ -45,7 +58,7 @@ def fetch_mhc_alleles(epitope_id: str) -> str:
         "structure_id": f"eq.{epitope_id}",
         "select": "mhc_allele_name,qualitative_measure",
     }
-    response = requests.get(MHC_LIGAND_ENDPOINT, params=params, timeout=30)
+    response = _get_with_retry(MHC_SEARCH_ENDPOINT, params=params)
     response.raise_for_status()
 
     records = response.json()
