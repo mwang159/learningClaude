@@ -1,0 +1,4 @@
+epitope_url,mhc_alleles
+http://www.iedb.org/epitope/155,"Request error: HTTPSConnectionPool(host='query-api.iedb.org', port=443): Max retries exceeded with url: /mhc_ligand_full?epitope_id=eq.155&select=mhc_allele_name (Caused by ProxyError('Unable to connect to proxy', OSError('Tunnel connection failed: 403 Forbidden')))"
+http://www.iedb.org/epitope/156,"Request error: HTTPSConnectionPool(host='query-api.iedb.org', port=443): Max retries exceeded with url: /mhc_ligand_full?epitope_id=eq.156&select=mhc_allele_name (Caused by ProxyError('Unable to connect to proxy', OSError('Tunnel connection failed: 403 Forbidden')))"
+http://www.iedb.org/epitope/785,"Request error: HTTPSConnectionPool(host='query-api.iedb.org', port=443): Max retries exceeded with url: /mhc_ligand_full?epitope_id=eq.785&select=mhc_allele_name (Caused by ProxyError('Unable to connect to proxy', OSError('Tunnel connection failed: 403 Forbidden')))"
